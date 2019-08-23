@@ -10,7 +10,7 @@
   * E_DEF_RATING (estimate защитный рейтинг)
   * E_NET_RATING (estimate нет рейтинг)
 
- 
+![](image/plot.jpg)
  
 * Выбирать диапазон дат отображения данных в таблице
 
