@@ -3,12 +3,14 @@ library(tidyverse)
 library(data.table)
 library(ggthemes)
 
-table <- fread("data/nba_rating.csv")
+table <- fread("F:/R_20190720/Shiny/nba/data/nba_rating.csv")
 table <- table %>%
   mutate(TEAM_NAME = as.character(TEAM_NAME)) %>%
   mutate(GAME_DATE = as.Date(GAME_DATE))
 
- mean <- 107.9268
+mean <- 107.9268
+
+source("helpers.R")
 
 ui <- fluidPage(
   titlePanel("NBA app ratings"),
@@ -58,7 +60,11 @@ ui <- fluidPage(
                      start = "2018-10-16",
                      end = "2019-04-10",
                      min = "2018-10-16",
-                     max = "2019-04-10")
+                     max = "2019-04-10"),
+      
+      downloadButton("download", "Save the data"),
+      
+      checkboxInput("roll", "10-Game Roling", value = FALSE)
     ),
     
     mainPanel(
@@ -114,7 +120,11 @@ server <- function(input, output) {
   })
   
   output$dallas <- renderPlot({
-    data <- nba()
+    if(input$roll) {
+      data <- rollmean_func(nba())
+    } else {
+      data <- nba()
+    }
     
     ggplot(data,
            aes_string(data$GAME_DATE, y = input$rating)) +
@@ -129,8 +139,22 @@ server <- function(input, output) {
   })
   
   output$data <- renderDataTable({
-    nba()
+    
+    if(input$roll) {
+      data <- rollmean_func(nba())
+    } else {
+      data <- nba()
+    }
   })
+  
+  output$download <- downloadHandler(
+    filename = function(){
+      paste0("data_", Sys.Date(), ".csv")
+    },
+    content = function(name){
+      write.csv(nba(), name, row.names = FALSE)
+    }, contentType = "text/csv"
+  )
     
 }
 
