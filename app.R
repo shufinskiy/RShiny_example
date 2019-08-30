@@ -2,8 +2,10 @@ library(shiny)
 library(tidyverse)
 library(data.table)
 library(ggthemes)
+library(zoo)
+library(plotly)
 
-table <- fread("F:/R_20190720/Shiny/nba/data/nba_rating.csv")
+table <- fread("data/nba_rating.csv")
 table <- table %>%
   mutate(TEAM_NAME = as.character(TEAM_NAME)) %>%
   mutate(GAME_DATE = as.Date(GAME_DATE))
@@ -50,11 +52,23 @@ ui <- fluidPage(
                                  "Washington Wizards"),
                   selected = "Toronto Raptors"),
       
+      br(),
+      br(),
       selectInput("rating", "Select rating:",
                   choices = list("E_OFF_RATING",
                                  "E_DEF_RATING",
-                                 "E_NET_RATING"),
+                                 "E_NET_RATING",
+                                 "OFF & DEF"),
                   selected = "E_NET_RATING"),
+
+      checkboxInput("roll", "Game Roling", value = FALSE),
+      
+      numericInput("number", "N-Game Rolling:",
+                   value = 10, min = 1, max = 82, step = 1),
+      helpText("N-Game Rolling works only\nwith checkbox 'Game Roling' enabled"),
+      
+      br(),
+      br(),
       
       dateRangeInput("time", "Select date range",
                      start = "2018-10-16",
@@ -62,16 +76,26 @@ ui <- fluidPage(
                      min = "2018-10-16",
                      max = "2019-04-10"),
       
+      br(),
+      br(),
+      
       downloadButton("download", "Save the data"),
       
-      checkboxInput("roll", "10-Game Roling", value = FALSE)
+      br(),
+      br(),
+      
+      downloadButton("downloadplot", "Save the plot")
+      
     ),
     
     mainPanel(
       tabsetPanel(
         type = "tabs",
         tabPanel("Plot", plotOutput("dallas")),
-        tabPanel("Table", dataTableOutput("data"))
+        tabPanel("Table", dataTableOutput("data")),
+        tabPanel("Interactive plot", plotlyOutput("plotly_chart",
+                                                  width = "auto",
+                                                  height = "600px"))
       )
       ) 
   )
@@ -121,30 +145,89 @@ server <- function(input, output) {
   
   output$dallas <- renderPlot({
     if(input$roll) {
-      data <- rollmean_func(nba())
+      data <- rollmean_func(nba(), input$number)
     } else {
       data <- nba()
     }
     
-    ggplot(data,
-           aes_string(data$GAME_DATE, y = input$rating)) +
-      geom_line(color = ifelse(data[,input$rating] > mean, data$col1, "black") ) +
-      geom_point() +
-      theme_tufte() +
-      labs(title = paste0(input$team," ",
-                          input$rating, " ",
-                          "in season 2018-19")) +
-      theme(axis.title.x = element_blank(),
-            plot.title = element_text(hjust = 0.5))
+    if(input$rating %in% c("E_OFF_RATING",
+                           "E_DEF_RATING",
+                           "E_NET_RATING")) {
+      ggplot(data,
+             aes_string(data$GAME_DATE, y = input$rating)) +
+        geom_line(color = ifelse(data[,input$rating] > mean, data$col1, "black") ) +
+        geom_point() +
+        theme_tufte() +
+        labs(title = paste0(ifelse(input$roll, 
+                                   paste0(input$number,"-Game Rolling "), 
+                                   ""), 
+                            input$team, " ",
+                            switch(input$rating,
+                                   "E_OFF_RATING" = "estimate off_rating",
+                                   "E_DEF_RATING" = "estimate def_rating",
+                                   "E_NET_RATING" = "estimate net_rating"),
+                            " ", "in season 2018-19")) +
+        theme(axis.title.x = element_blank(),
+              plot.title = element_text(hjust = 0.5))
+    } else {
+      data_two_plots(data)
+    }
+
   })
   
   output$data <- renderDataTable({
     
     if(input$roll) {
-      data <- rollmean_func(nba())
+      data <- rollmean_func(nba(), input$number)
     } else {
       data <- nba()
     }
+  })
+  
+  output$plotly_chart <- renderPlotly({
+    if(input$roll) {
+      data <- rollmean_func(nba(), input$number)
+    } else {
+      data <- nba()
+    }
+    
+    if(input$rating %in% c("E_OFF_RATING",
+                           "E_DEF_RATING",
+                           "E_NET_RATING")) {
+      plot_ly()%>%
+        add_trace(data = data,
+                  type = 'scatter',
+                  mode = 'lines+markers',
+                  x = data$GAME_DATE,
+                  y = switch (input$rating,
+                              "E_OFF_RATING" = data$E_OFF_RATING,
+                              "E_DEF_RATING" = data$E_DEF_RATING,
+                              "E_NET_RATING" = data$E_NET_RATING
+                  ),
+                  text = ~data$TEAM_NAME,
+                  color = I(data$col1)) %>%
+        layout(title = paste0(ifelse(input$roll, 
+                                     paste0(input$number,"-Game Rolling "), 
+                                     ""), 
+                              input$team, " ",
+                              switch(input$rating,
+                                     "E_OFF_RATING" = "estimate off_rating",
+                                     "E_DEF_RATING" = "estimate def_rating",
+                                     "E_NET_RATING" = "estimate net_rating"),
+                              " ", "in season 2018-19"),
+               yaxis = list(title = switch(input$rating,
+                                           "E_OFF_RATING" = "estimate off_rating",
+                                           "E_DEF_RATING" = "estimate def_rating",
+                                           "E_NET_RATING" = "estimate net_rating"),
+                            zeroline = FALSE))
+    } else {
+      data_two_plots(data) %>%
+        ggplotly() %>%
+        layout(legend = list(orientation = "h",   
+                             xanchor = "center",
+                             x = 0.5, y = -Inf))
+    }
+    
   })
   
   output$download <- downloadHandler(
@@ -154,6 +237,15 @@ server <- function(input, output) {
     content = function(name){
       write.csv(nba(), name, row.names = FALSE)
     }, contentType = "text/csv"
+  )
+  
+  output$downloadplot <- downloadHandler(
+    filename = function(){
+      paste0("plot_", Sys.Date(), ".png")
+    },
+    content = function(name){
+      ggsave(name, plot = last_plot(), height = 5, width = 7, units = "in")
+    }, contentType = "image/png"
   )
     
 }
