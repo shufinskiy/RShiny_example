@@ -9,6 +9,7 @@
   * E_OFF_RATING (estimate атакующий рейтинг)
   * E_DEF_RATING (estimate защитный рейтинг)
   * E_NET_RATING (estimate нет рейтинг)
+  * OFF & DEF (график сравнения E_OFF_RATING и E_DEF_RATING)
 
 ![](image/plot.jpg)
  
@@ -29,6 +30,10 @@
 * Отображать интерактивные графики, построенные с помощью пакета ```plotly```
 
 ![](image/interactive_charts.jpg)
+
+* Строить статические и интерактивные графики сравнения двух рейтингов: атакующего и защитного
+
+![](image/two_plots.jpg)
 
 Планы по улучшению приложения:
 
