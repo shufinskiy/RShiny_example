@@ -10,7 +10,7 @@ table <- table %>%
   mutate(TEAM_NAME = as.character(TEAM_NAME)) %>%
   mutate(GAME_DATE = as.Date(GAME_DATE))
 
-mean <- 107.9268
+mean <- 107.92
 
 source("helpers.R")
 
